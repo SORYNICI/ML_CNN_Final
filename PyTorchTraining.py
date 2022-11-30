@@ -23,66 +23,6 @@ import pandas as pd
 from PreTraining import get_image
 import csv
 
-# Loading and normalizing the data.
-# Define transformations for the training and test sets
-transformations = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
-
-# CIFAR10 dataset consists of 50K training images. We define the batch size of 10 to load 5,000 batches of images.
-# 테스트 후, 과적 차량 이미지로 교체 예정
-batch_size = 10
-number_of_labels = 2
-classes = (1, 0)
-
-label = []
-data = []
-
-data, label = get_image()
-# with open('./ml/pre_data.csv', 'r', encoding='utf-8') as f:
-#     rdr = csv.reader(f)
-#     for i, line in enumerate(rdr):
-#         if i == 0:
-#             print(i, line[0])
-#         if i == 1:
-#             print(i, line[0])
-#             print(i, type(line[0]))
-#         if i % 2 == 0:
-#             label.append(int(line[0]))
-#         else:
-#             data.append(line[0])
-
-# csv_data = pd.read_csv("./ml/pre_data.csv", header = None)
-
-# for row_index, row in csv_data.iterrows():
-#     print(row_index)
-#     if row_index == 0:
-#         label = row
-#     else:
-#         data = row
-
-# for i in range(len(data)):
-#     print(data[i].count('\n'))
-# print(data[0])
-
-data = np.array(data, dtype = np.float32)
-label = np.array(label, dtype = np.int64)
-
-train_X, test_X, train_Y, test_Y = model_selection.train_test_split(data, label, test_size=0.3)
-
-train_X = torch.from_numpy(train_X).float()
-train_Y = torch.from_numpy(train_Y).long()
-
-test_X = torch.from_numpy(test_X).float()
-test_Y = torch.from_numpy(test_Y).long()
-
-train_set = TensorDataset(train_X, train_Y)
-test_set = TensorDataset(test_X, test_Y)
-
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=0)
-
 # 신경망 구성
 class Network(nn.Module):
   def __init__(self):
@@ -104,12 +44,6 @@ class Network(nn.Module):
     x = self.fc2(x)
     return F.log_softmax(x)
 
-# 인스턴스 생성
-model = Network()
-
-# Define the loss function with Classification Cross-Entropy loss and an optimizer with Adam optimizer
-loss_fn = nn.CrossEntropyLoss()
-optimizer = Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 
 # Function to save the model
 def saveModel():
@@ -241,40 +175,99 @@ def testBatch():
 #     testBatch()
 
 
-def print_loss(accuracy, loss_list, epoch_list):
+def print_loss(accuracy, loss_list, epoch_list, type, count):
     if not os.path.exists(f'./ml/result/'):
         os.makedirs(f'./ml/result/')
     recent_time = datetime.datetime.now()
-    fig = plt.figure(figsize=(10, 5))
+    # fig = plt.figure(figsize=(10, 5))
+    if type == 0:
+        type_string = "대형"
+    elif type == 1:
+        type_string = "중형"
+    elif type == 2:
+        type_string = "소형"
+    elif type == 3:
+        type_string = "전체"
     plt.plot(epoch_list, loss_list, label = 'loss')
     plt.legend()
-    plt.title(f'CNN loss plot : {accuracy}')
-    plt.savefig(f'./ml/result/{recent_time}_loss_plot.png')
+    plt.title(f'CNN loss plot : {accuracy}, {type_string}, #{count}')
+    plt.savefig(f'./ml/result/{recent_time}_{type_string}_plot.png')
+    with open(f'./ml/result/{recent_time}_{type_string}_loss.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['time', recent_time])
+        writer.writerow(['type', type_string])
+        writer.writerow(['accuracy', accuracy])
+        writer.writerow(['count', count])
+        writer.writerow(loss_list)
 
-criterion = nn.CrossEntropyLoss()
+# Start: loading and normalizing the data.
+transformations = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
 
-optimizer = Adam(model.parameters(), lr=0.001)
-loss_list = []
-epoch_list = []
+batch_size = 10
+number_of_labels = 2
+number_of_epoch = 100
+classes = (1, 0)
 
-for epoch in range(200):
-  total_loss = 0
-  for train_x, train_y in train_loader:
-    train_x, train_y = Variable(train_x), Variable(train_y)
-    optimizer.zero_grad()
-    output = model(train_x)
-    loss = criterion(output, train_y)
-    loss.backward()
-    optimizer.step()
-    total_loss += loss.data.item()
-  if (epoch+1) % 10 == 0:
-    epoch_list.append(epoch+1)
-    loss_list.append(total_loss)
-    print(epoch+1, total_loss)
+label = []
+data = []
 
-saveModel()
-test_x, test_y = Variable(test_X), Variable(test_Y)
-result = torch.max(model(test_x).data, 1)[1]
-accuracy = sum(test_y.data.numpy() == result.numpy()) / len(test_y.data.numpy())
-print(accuracy)
-print_loss(accuracy, loss_list, epoch_list)
+types = [3] # 0, 1, 2, 
+for type in types:
+    # type 0 = All, 1 = 중형, 2 = 대형, 3 = All
+    data, label, count = get_image(type)
+
+    data = np.array(data, dtype = np.float32)
+    label = np.array(label, dtype = np.int64)
+
+    train_X, test_X, train_Y, test_Y = model_selection.train_test_split(data, label, test_size=0.3)
+
+    train_X = torch.from_numpy(train_X).float()
+    train_Y = torch.from_numpy(train_Y).long()
+
+    test_X = torch.from_numpy(test_X).float()
+    test_Y = torch.from_numpy(test_Y).long()
+
+    train_set = TensorDataset(train_X, train_Y)
+    test_set = TensorDataset(test_X, test_Y)
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=0)
+    # End: loading and normalizing the data.
+
+    # 인스턴스 생성
+    model = Network()
+
+    # Define the loss function with Classification Cross-Entropy loss and an optimizer with Adam optimizer
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
+    criterion = nn.CrossEntropyLoss()
+
+    optimizer = Adam(model.parameters(), lr=0.001)
+    loss_list = []
+    epoch_list = []
+
+    for epoch in range(number_of_epoch):
+        total_loss = 0
+        for train_x, train_y in train_loader:
+            train_x, train_y = Variable(train_x), Variable(train_y)
+            optimizer.zero_grad()
+            output = model(train_x)
+            loss = criterion(output, train_y)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.data.item()
+        if (epoch+1) % 10 == 0:
+            epoch_list.append(epoch+1)
+            loss_list.append(total_loss)
+            print(epoch+1, total_loss)
+
+    saveModel() # Save 는 하는데 Load 하는 부분은 따로 추가하지 않았음.
+    # 필요한 경우 추가 가능함.
+    test_x, test_y = Variable(test_X), Variable(test_Y)
+    result = torch.max(model(test_x).data, 1)[1]
+    accuracy = sum(test_y.data.numpy() == result.numpy()) / len(test_y.data.numpy())
+    print(accuracy)
+    print_loss(accuracy, loss_list, epoch_list, type, count)
