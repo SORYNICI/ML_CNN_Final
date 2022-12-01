@@ -20,31 +20,7 @@ min_y = 0
 max_x = 1920
 max_y = 1080
 
-index = 0
-for file_path in os.listdir(image_train_path):
-    if file_path.endswith('jpg'):
-        img = Image.open(image_train_path + file_path).convert("RGB")
-        new_img = img.resize((128, 128), Image.ANTIALIAS)
-        new_img.save(image_train_path + file_path, format='jpeg', quality=100)
-        if index <= 10:
-            print(index)
-    index += 1
 
-# index = 0
-# for file_path in os.listdir(image_train_path):
-#     if file_path.endswith('jpg') and not os.path.isfile(image_train_path + file_path.replace('jpg', 'txt')):
-#         os.remove(image_train_path + file_path)
-#         continue
-#     if file_path.endswith('txt') and not os.path.isfile(image_train_path + file_path.replace('txt', 'jpg')):
-#         os.remove(image_train_path + file_path)
-#         continue
-# for file_path in os.listdir(image_valid_path):
-#     if file_path.endswith('jpg') and not os.path.isfile(image_valid_path + file_path.replace('jpg', 'txt')):
-#         os.remove(image_valid_path + file_path)
-#         continue
-#     if file_path.endswith('txt') and not os.path.isfile(image_valid_path + file_path.replace('txt', 'jpg')):
-#         os.remove(image_valid_path + file_path)
-#         continue
 
 # 노말라이즈
 # index = 0
@@ -100,8 +76,8 @@ for file_path in os.listdir(image_train_path):
 
 # txt 만들기
 # index = 0
-# for file_path in label_train_files:
-#     with open(label_train_path + file_path, 'r') as file:
+# for file_path in label_train_files: # label_train_files, label_valid_files
+#     with open(label_train_path + file_path, 'r') as file: # label_train_path, label_valid_path
 #         data = json.load(file)
 #         json_str = data["FILE"][0]
 #         file_name = json_str["FILE_NAME"]
@@ -111,7 +87,7 @@ for file_path in os.listdir(image_train_path):
 #             package = '1'
 #         else:
 #             package = '0'
-#         if items["CLASS"] != "적재불량":
+#         if items["CLASS"] != "적재불량" and items["CLASS"] != "정상차량":
 #             if os.path.isfile('img/' + file_path.replace('json', 'jpg')):
 #                 os.remove('img/' + file_path.replace('json', 'jpg'))
 #             continue
@@ -130,15 +106,15 @@ for file_path in os.listdir(image_train_path):
 #             if os.path.isfile('img/' + file_path.replace('json', 'jpg')):
 #                 os.remove('img/' + file_path.replace('json', 'jpg'))
 #             continue
-#         box[0] = float(box[0]) / max_x
-#         box[1] = float(box[1]) / max_y
-#         box[2] = float(box[2]) / max_x
-#         box[3] = float(box[3]) / max_y
+#         box[2] = float(box[2]) / 1920
+#         box[3] = float(box[3]) / 1080
+#         box[0] = (float(box[0]) / 1920) + (box[2] / 2)
+#         box[1] = (float(box[1]) / 1080) + (box[3] / 2)
 #         text = package + ' ' + str(box[0]) + ' ' + str(box[1]) + ' ' + str(box[2]) + ' ' + str(box[3])
 #         if (index == 0):
 #             print(text)
 #         file.close()
-#         if os.path.isfile(image_train_path + file_path.replace('json', 'txt')):
+#         if os.path.isfile(image_train_path + file_path.replace('json', 'txt')): # image_train_path, image_valid_path
 #             os.remove(image_train_path + file_path.replace('json', 'txt'))
 #         f = open(image_train_path + file_path.replace('json', 'txt'), 'w')
 #         f.write(text)
@@ -146,6 +122,42 @@ for file_path in os.listdir(image_train_path):
 #             print(f)
 #         f.close()
 #         index += 1
+
+# index = 0
+# for file_path in os.listdir(image_train_path):
+#     if file_path.endswith('jpg') and not os.path.isfile(image_train_path + file_path.replace('jpg', 'txt')):
+#         os.remove(image_train_path + file_path)
+#         continue
+#     if file_path.endswith('txt') and not os.path.isfile(image_train_path + file_path.replace('txt', 'jpg')):
+#         os.remove(image_train_path + file_path)
+#         continue
+# for file_path in os.listdir(image_valid_path):
+#     if file_path.endswith('jpg') and not os.path.isfile(image_valid_path + file_path.replace('jpg', 'txt')):
+#         os.remove(image_valid_path + file_path)
+#         continue
+#     if file_path.endswith('txt') and not os.path.isfile(image_valid_path + file_path.replace('txt', 'jpg')):
+#         os.remove(image_valid_path + file_path)
+#         continue
+
+# 리사이징
+# index = 0
+# for file_path in os.listdir(image_train_path):
+#     if file_path.endswith('jpg'):
+#         img = Image.open(image_train_path + file_path).convert("RGB")
+#         new_img = img.resize((128, 128), Image.ANTIALIAS)
+#         new_img.save(image_train_path + file_path, format='jpeg', quality=100)
+#         if index % 100 == 0:
+#             print(index)
+#     index += 1
+# index = 0
+# for file_path in os.listdir(image_valid_path):
+#     if file_path.endswith('jpg'):
+#         img = Image.open(image_valid_path + file_path).convert("RGB")
+#         new_img = img.resize((128, 128), Image.ANTIALIAS)
+#         new_img.save(image_valid_path + file_path, format='jpeg', quality=100)
+#         if index % 100 == 0:
+#             print(index)
+#     index += 1
 
 # 파일 이동
 # image_path = 'img/'
@@ -163,6 +175,31 @@ for file_path in os.listdir(image_train_path):
 #             print('4', file_name)
 #         shutil.move(image_path + file_name, 'image_train/' + file_name)
 #         # shutil.move(label_path + file_name.replace('.jpg', '.txt'), 'image_train/' + file_name.replace('.jpg', '.txt'))
+#     index += 1
+
+# image_path = 'image_s/' # 'image', 'image_s'
+# label_path = 'label_s/' # 'label', 'label_s'
+
+# index = 0
+# for file_name in os.listdir(image_path):
+#     if index % 10 < 3:
+#         if (index == 0):
+#             print('0', file_name)
+#         if os.path.exists('image_valid/' + file_name):
+#             os.remove('image_valid/' + file_name)
+#         if os.path.exists('label_valid/' + file_name.replace('jpg', 'json')):
+#             os.remove('label_valid/' + file_name.replace('jpg', 'json'))
+#         shutil.copy(image_path + file_name, 'image_valid/' + file_name)
+#         shutil.copy(label_path + file_name.replace('jpg', 'json'), 'label_valid/' + file_name.replace('jpg', 'json'))
+#     elif index % 10 >= 3: 
+#         if (index == 4):
+#             print('4', file_name)
+#         if os.path.exists('image_train/' + file_name):
+#             os.remove('image_train/' + file_name)
+#         if os.path.exists('label_train/' + file_name.replace('jpg', 'json')):
+#             os.remove('label_train/' + file_name.replace('jpg', 'json'))
+#         shutil.copy(image_path + file_name, 'image_train/' + file_name)
+#         shutil.copy(label_path + file_name.replace('jpg', 'json'), 'label_train/' + file_name.replace('jpg', 'json'))
 #     index += 1
 
 # label_path = './ml/txt/'
@@ -204,8 +241,8 @@ for file_path in os.listdir(image_train_path):
 # os.rmdir('./ml/image_s')
 # os.rmdir('./ml/image')
 
-# shutil.rmtree('darknet/yolov5/image_train/')
-# shutil.rmtree('darknet/yolov5/image_valid/')
+shutil.rmtree('darknet/yolov5/image_train/')
+shutil.rmtree('darknet/yolov5/image_valid/')
 
-# shutil.copytree('image_train/', 'darknet/yolov5/image_train/')
-# shutil.copytree('image_valid/', 'darknet/yolov5/image_valid/')
+shutil.copytree('image_train/', 'darknet/yolov5/image_train/')
+shutil.copytree('image_valid/', 'darknet/yolov5/image_valid/')
