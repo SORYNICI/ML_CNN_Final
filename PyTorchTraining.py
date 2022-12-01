@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 
+from torch.nn.utils import prune
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 from torch.utils.data import DataLoader, TensorDataset
@@ -46,8 +47,12 @@ class Network(nn.Module):
 
 
 # Function to save the model
-def saveModel():
-    path = "./ml/model.pth"
+def saveModel(is_prune=False):
+    if is_prune:
+        path = "./ml/model_prune.pth"
+    else:
+        path = "./ml/model.pth"
+
     torch.save(model.state_dict(), path)
 
 # Function to test the model with the test dataset and print the accuracy for the test images
@@ -71,6 +76,38 @@ def testAccuracy():
     accuracy = (100 * accuracy / total)
     return(accuracy)
 
+def print_model_sparsity(model):
+    # Print the results for each layer and global.
+    print(
+        "Sparsity in conv1 layer weight: {:.2f}%".format(
+            100. * float(torch.sum(model.conv1.weight == 0))
+            / float(model.conv1.weight.nelement())
+        )
+    )
+
+    print(
+        "Sparsity in fc1 layer weight: {:.2f}%".format(
+            100. * float(torch.sum(model.fc1.weight == 0))
+            / float(model.fc1.weight.nelement())
+        )
+    )
+
+    print(
+        "Global sparsity: {:.2f}%".format(
+            100. * float(
+                torch.sum(model.conv1.weight == 0)
+                + torch.sum(model.conv2.weight == 0)
+                + torch.sum(model.fc1.weight == 0)
+                + torch.sum(model.fc2.weight == 0)
+            )
+            / float(
+                model.conv1.weight.nelement()
+                + model.conv2.weight.nelement()
+                + model.fc1.weight.nelement()
+                + model.fc2.weight.nelement()
+            )
+        )
+    )
 
 # Training function. We simply have to loop over our data iterator and feed the inputs to the network and optimize.
 def train(num_epochs):
@@ -80,6 +117,7 @@ def train(num_epochs):
     # Define your execution device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("The model will be running on", device, "device")
+
     # Convert model parameters and buffers to CPU or Cuda
     model.to(device)
 
@@ -121,7 +159,6 @@ def train(num_epochs):
         if accuracy > best_accuracy:
             saveModel()
             best_accuracy = accuracy
-
 
 # Function to show the images
 def imageshow(img):
@@ -200,21 +237,35 @@ def print_loss(accuracy, loss_list, epoch_list, type, count):
         writer.writerow(['count', count])
         writer.writerow(loss_list)
 
+def prune_model(model, prune_amount):
+    # Parameters
+    parameters_to_prune = (
+        (model.conv1, 'weight'),
+        (model.conv2, 'weight'),
+        (model.fc1, 'weight'),
+        (model.fc2, 'weight'),
+    )
+
+    # Execute Pruning
+    prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=prune_amount)
+
 # Start: loading and normalizing the data.
 transformations = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
+# Hyper params
 batch_size = 10
 number_of_labels = 2
-number_of_epoch = 100
+number_of_epoch = 10
 classes = (1, 0)
+prune_amount = 0.2
 
 label = []
 data = []
 
-types = [3] # 0, 1, 2, 
+types = [0] # 0, 1, 2,
 for type in types:
     # type 0 = All, 1 = 중형, 2 = 대형, 3 = All
     data, label, count = get_image(type)
@@ -262,7 +313,7 @@ for type in types:
         if (epoch+1) % 10 == 0:
             epoch_list.append(epoch+1)
             loss_list.append(total_loss)
-            print(epoch+1, total_loss)
+            print("epoch: ", epoch+1, total_loss)
 
     saveModel() # Save 는 하는데 Load 하는 부분은 따로 추가하지 않았음.
     # 필요한 경우 추가 가능함.
@@ -271,3 +322,6 @@ for type in types:
     accuracy = sum(test_y.data.numpy() == result.numpy()) / len(test_y.data.numpy())
     print(accuracy)
     print_loss(accuracy, loss_list, epoch_list, type, count)
+
+    prune_model(model, prune_amount)
+    print_model_sparsity()
