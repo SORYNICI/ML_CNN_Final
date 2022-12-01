@@ -45,14 +45,12 @@ class Network(nn.Module):
     x = self.fc2(x)
     return F.log_softmax(x)
 
-
 # Function to save the model
-def saveModel(is_prune=False):
+def saveModel():
     if is_prune:
-        path = "./ml/model_prune.pth"
+        path = "model_prune.pth"
     else:
-        path = "./ml/model.pth"
-
+        path = "model.pth"
     torch.save(model.state_dict(), path)
 
 # Function to test the model with the test dataset and print the accuracy for the test images
@@ -121,6 +119,9 @@ def train(num_epochs):
     # Convert model parameters and buffers to CPU or Cuda
     model.to(device)
 
+    accuracy_list = []
+    epoch_list = []
+
     for epoch in range(num_epochs):  # loop over the dataset multiple times
         running_loss = 0.0
         running_acc = 0.0
@@ -144,6 +145,7 @@ def train(num_epochs):
 
             # Let's print statistics for every 1,000 images
             running_loss += loss.item()     # extract the loss value
+
             if i % 1000 == 999:    
                 # print every 1000 (twice per epoch) 
                 print('[%d, %5d] loss: %.3f' %
@@ -151,14 +153,19 @@ def train(num_epochs):
                 # zero the loss
                 running_loss = 0.0
 
+
         # Compute and print the average accuracy fo this epoch when tested over all 10000 test images
         accuracy = testAccuracy()
         print('For epoch', epoch+1,'the test accuracy over the whole test set is %d %%' % (accuracy))
+        epoch_list.append(epoch)
+        accuracy_list.append(accuracy)
         
         # we want to save the model if the accuracy is the best
         if accuracy > best_accuracy:
             saveModel()
             best_accuracy = accuracy
+    
+    return accuracy_list, epoch_list
 
 # Function to show the images
 def imageshow(img):
@@ -166,9 +173,9 @@ def imageshow(img):
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
-    if not os.path.exists(f'./ml/result/'):
-        os.makedirs(f'./ml/result/')
-    plt.savefig(f'./ml/result/image.png')
+    if not os.path.exists(f'result/'):
+        os.makedirs(f'result/')
+    plt.savefig(f'result/image.png')
 
 
 
@@ -178,7 +185,7 @@ def testBatch():
     images, labels = next(iter(test_loader))
 
     # show all images as one image grid
-    imageshow(torchvision.utils.make_grid(images))
+    # imageshow(torchvision.utils.make_grid(images))
    
     # Show the real labels on the screen 
     print('Real labels: ', ' '.join('%5s' % classes[labels[j]] 
@@ -194,48 +201,31 @@ def testBatch():
     print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] 
                               for j in range(batch_size)))
 
-# if __name__ == "__main__":
-    
-#     # Let's build our model
-#     train(100)
-#     print('Finished Training')
-
-#     # Test which classes performed well
-#     testAccuracy()
-    
-#     # Let's load the model we just created and test the accuracy per label
-#     model = Network()
-#     path = "./ml/model.pth"
-#     model.load_state_dict(torch.load(path))
-
-#     # Test with batch of images
-#     testBatch()
-
-
-def print_loss(accuracy, loss_list, epoch_list, type, count):
-    if not os.path.exists(f'./ml/result/'):
-        os.makedirs(f'./ml/result/')
+def print_loss(accuracy_list, epoch_list, type, count):
+    if not os.path.exists(f'result/'):
+        os.makedirs(f'result/')
     recent_time = datetime.datetime.now()
     # fig = plt.figure(figsize=(10, 5))
     if type == 0:
-        type_string = "대형"
+        type_string = "Big"
     elif type == 1:
-        type_string = "중형"
+        type_string = "Mid"
     elif type == 2:
-        type_string = "소형"
+        type_string = "Sma"
     elif type == 3:
-        type_string = "전체"
-    plt.plot(epoch_list, loss_list, label = 'loss')
+        type_string = "All"
+    print('print_loss: ', epoch_list)
+    print('print_loss: ', accuracy_list)
+    plt.plot(epoch_list, accuracy_list, label = type_string)
     plt.legend()
-    plt.title(f'CNN loss plot : {accuracy}, {type_string}, #{count}')
-    plt.savefig(f'./ml/result/{recent_time}_{type_string}_plot.png')
-    with open(f'./ml/result/{recent_time}_{type_string}_loss.csv', 'w', newline='') as f:
+    plt.title(f'CNN loss plot : {type_string}, #{count}')
+    plt.savefig(f'result/{recent_time}_{type_string}_plot.png')
+    with open(f'result/{recent_time}_{type_string}_loss.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['time', recent_time])
         writer.writerow(['type', type_string])
-        writer.writerow(['accuracy', accuracy])
         writer.writerow(['count', count])
-        writer.writerow(loss_list)
+        writer.writerow(accuracy_list)
 
 def prune_model(model, prune_amount):
     # Parameters
@@ -255,17 +245,20 @@ transformations = transforms.Compose([
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
-# Hyper params
-batch_size = 10
+
+batch_size = 16
 number_of_labels = 2
-number_of_epoch = 10
-classes = (1, 0)
+number_of_epoch = 5
+classes = ('1', '0')
+
 prune_amount = 0.2
+
 
 label = []
 data = []
 
-types = [0] # 0, 1, 2,
+types = [0, 1, 2, 3] # 0, 1, 2, 3
+
 for type in types:
     # type 0 = All, 1 = 중형, 2 = 대형, 3 = All
     data, label, count = get_image(type)
@@ -283,45 +276,36 @@ for type in types:
 
     train_set = TensorDataset(train_X, train_Y)
     test_set = TensorDataset(test_X, test_Y)
+    print('train_set len: ', len(train_set))
+    print('test_set len: ', len(test_set))
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0)
     # End: loading and normalizing the data.
 
     # 인스턴스 생성
     model = Network()
 
     # Define the loss function with Classification Cross-Entropy loss and an optimizer with Adam optimizer
+    optimizer = Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
-    criterion = nn.CrossEntropyLoss()
+    # Let's build our model
+    accuracy_list, epoch_list = train(number_of_epoch)
+    print('Finished Training')
 
-    optimizer = Adam(model.parameters(), lr=0.001)
-    loss_list = []
-    epoch_list = []
+    print_loss(accuracy_list, epoch_list, type, count)
 
-    for epoch in range(number_of_epoch):
-        total_loss = 0
-        for train_x, train_y in train_loader:
-            train_x, train_y = Variable(train_x), Variable(train_y)
-            optimizer.zero_grad()
-            output = model(train_x)
-            loss = criterion(output, train_y)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.data.item()
-        if (epoch+1) % 10 == 0:
-            epoch_list.append(epoch+1)
-            loss_list.append(total_loss)
-            print("epoch: ", epoch+1, total_loss)
+    # Test which classes performed well
+    testAccuracy()
+    
+    # Let's load the model we just created and test the accuracy per label
+    model = Network()
+    path = "model.pth"
+    model.load_state_dict(torch.load(path))
 
-    saveModel() # Save 는 하는데 Load 하는 부분은 따로 추가하지 않았음.
-    # 필요한 경우 추가 가능함.
-    test_x, test_y = Variable(test_X), Variable(test_Y)
-    result = torch.max(model(test_x).data, 1)[1]
-    accuracy = sum(test_y.data.numpy() == result.numpy()) / len(test_y.data.numpy())
-    print(accuracy)
-    print_loss(accuracy, loss_list, epoch_list, type, count)
-
+    # Test with batch of images
+    testBatch()
+    
+    
     prune_model(model, prune_amount)
     print_model_sparsity()

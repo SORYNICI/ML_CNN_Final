@@ -6,10 +6,10 @@ import json
 from PIL import Image
 import numpy as np
 
-image_path = './ml/image/'
-label_path = './ml/label/'
-image_path_s = './ml/image_s/'
-label_path_s = './ml/label_s/'
+image_path = 'image/'
+label_path = 'label/'
+image_path_s = 'image_s/'
+label_path_s = 'label_s/'
 
 def get_image(type = 3):
 
@@ -46,12 +46,12 @@ def get_file_image(label_files, label_path, image_path, type):
     label_count = 0
     for file_path in label_files:
         try:
-            with open(label_path + file_path, 'r') as file:
+            with open(label_path + file_path, 'r', encoding="UTF-8") as file:
                 data = json.load(file)
                 json_str = data["FILE"][0]
                 file_name = json_str["FILE_NAME"]
-                # if not file_name.endswith('1.jpg'):
-                #     continue
+                if not file_name.endswith('1.jpg'):
+                    continue
                 if type == 0 and not file_name.startswith('A01'):
                     continue
                 if type == 1 and not file_name.startswith('A02'):
@@ -59,7 +59,7 @@ def get_file_image(label_files, label_path, image_path, type):
 
                 items = json_str["ITEMS"][0]
                 package = items["PACKAGE"]
-                if label_count == 0:
+                if label_count % 100 == 0:
                     print(file_name)
                     print(package)
                 
