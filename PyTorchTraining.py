@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 
+from torch.nn.utils import prune
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 from torch.utils.data import DataLoader, TensorDataset
@@ -46,7 +47,10 @@ class Network(nn.Module):
 
 # Function to save the model
 def saveModel():
-    path = "model.pth"
+    if is_prune:
+        path = "model_prune.pth"
+    else:
+        path = "model.pth"
     torch.save(model.state_dict(), path)
 
 # Function to test the model with the test dataset and print the accuracy for the test images
@@ -70,6 +74,38 @@ def testAccuracy():
     accuracy = (100 * accuracy / total)
     return(accuracy)
 
+def print_model_sparsity(model):
+    # Print the results for each layer and global.
+    print(
+        "Sparsity in conv1 layer weight: {:.2f}%".format(
+            100. * float(torch.sum(model.conv1.weight == 0))
+            / float(model.conv1.weight.nelement())
+        )
+    )
+
+    print(
+        "Sparsity in fc1 layer weight: {:.2f}%".format(
+            100. * float(torch.sum(model.fc1.weight == 0))
+            / float(model.fc1.weight.nelement())
+        )
+    )
+
+    print(
+        "Global sparsity: {:.2f}%".format(
+            100. * float(
+                torch.sum(model.conv1.weight == 0)
+                + torch.sum(model.conv2.weight == 0)
+                + torch.sum(model.fc1.weight == 0)
+                + torch.sum(model.fc2.weight == 0)
+            )
+            / float(
+                model.conv1.weight.nelement()
+                + model.conv2.weight.nelement()
+                + model.fc1.weight.nelement()
+                + model.fc2.weight.nelement()
+            )
+        )
+    )
 
 # Training function. We simply have to loop over our data iterator and feed the inputs to the network and optimize.
 def train(num_epochs):
@@ -79,6 +115,7 @@ def train(num_epochs):
     # Define your execution device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("The model will be running on", device, "device")
+
     # Convert model parameters and buffers to CPU or Cuda
     model.to(device)
 
@@ -129,7 +166,6 @@ def train(num_epochs):
             best_accuracy = accuracy
     
     return accuracy_list, epoch_list
-
 
 # Function to show the images
 def imageshow(img):
@@ -191,21 +227,38 @@ def print_loss(accuracy_list, epoch_list, type, count):
         writer.writerow(['count', count])
         writer.writerow(accuracy_list)
 
+def prune_model(model, prune_amount):
+    # Parameters
+    parameters_to_prune = (
+        (model.conv1, 'weight'),
+        (model.conv2, 'weight'),
+        (model.fc1, 'weight'),
+        (model.fc2, 'weight'),
+    )
+
+    # Execute Pruning
+    prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=prune_amount)
+
 # Start: loading and normalizing the data.
 transformations = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
+
 batch_size = 16
 number_of_labels = 2
 number_of_epoch = 5
 classes = ('1', '0')
 
+prune_amount = 0.2
+
+
 label = []
 data = []
 
 types = [0, 1, 2, 3] # 0, 1, 2, 3
+
 for type in types:
     # type 0 = All, 1 = 중형, 2 = 대형, 3 = All
     data, label, count = get_image(type)
@@ -252,3 +305,7 @@ for type in types:
 
     # Test with batch of images
     testBatch()
+    
+    
+    prune_model(model, prune_amount)
+    print_model_sparsity()
