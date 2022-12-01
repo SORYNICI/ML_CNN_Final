@@ -23,6 +23,9 @@ import pandas as pd
 
 from PreTraining import get_image
 import csv
+import time
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # 신경망 구성
 class Network(nn.Module):
@@ -55,7 +58,6 @@ def saveModel(is_prune=False):
 
 # Function to test the model with the test dataset and print the accuracy for the test images
 def testAccuracy():
-    
     model.eval()
     accuracy = 0.0
     total = 0.0
@@ -63,6 +65,9 @@ def testAccuracy():
     with torch.no_grad():
         for data in test_loader:
             images, labels = data
+
+            images = Variable(images.to(device))
+            labels = Variable(labels.to(device))
             # run the model on the test set to predict labels
             outputs = model(images)
             # the label with the highest energy will be our prediction
@@ -108,12 +113,11 @@ def print_model_sparsity(model):
     )
 
 # Training function. We simply have to loop over our data iterator and feed the inputs to the network and optimize.
-def train(num_epochs):
+def train(model, num_epochs):
     
     best_accuracy = 0.0
 
     # Define your execution device
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("The model will be running on", device, "device")
 
     # Convert model parameters and buffers to CPU or Cuda
@@ -180,7 +184,7 @@ def imageshow(img):
 
 
 # Function to test the model with a batch of images and show the labels predictions
-def testBatch():
+def testBatch(model):
     # get batch of images from the test DataLoader  
     images, labels = next(iter(test_loader))
 
@@ -290,7 +294,7 @@ for type in types:
     optimizer = Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
     loss_fn = nn.CrossEntropyLoss()
     # Let's build our model
-    accuracy_list, epoch_list = train(number_of_epoch)
+    accuracy_list, epoch_list = train(model, number_of_epoch)
     print('Finished Training')
 
     print_loss(accuracy_list, epoch_list, type, count)
@@ -304,8 +308,8 @@ for type in types:
     model.load_state_dict(torch.load(path))
 
     # Test with batch of images
-    testBatch()
+    testBatch(model)
     
-    
+    # Pruning for compact model
     prune_model(model, prune_amount)
-    print_model_sparsity()
+    print_model_sparsity(model)
