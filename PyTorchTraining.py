@@ -49,15 +49,16 @@ class Network(nn.Module):
     return F.log_softmax(x)
 
 # Function to save the model
-def saveModel(is_prune=False):
+def saveModel(is_prune=False, save_model=None):
     if is_prune:
         path = "model_prune.pth"
     else:
         path = "model.pth"
-    torch.save(model.state_dict(), path)
+    torch.save(save_model.state_dict(), path)
 
 # Function to test the model with the test dataset and print the accuracy for the test images
-def testAccuracy():
+def testAccuracy(model):
+    model.to(device)
     model.eval()
     accuracy = 0.0
     total = 0.0
@@ -89,9 +90,22 @@ def print_model_sparsity(model):
     )
 
     print(
+        "Sparsity in conv2 layer weight: {:.2f}%".format(
+            100. * float(torch.sum(model.conv2.weight == 0))
+            / float(model.conv2.weight.nelement())
+        )
+    )
+
+    print(
         "Sparsity in fc1 layer weight: {:.2f}%".format(
             100. * float(torch.sum(model.fc1.weight == 0))
             / float(model.fc1.weight.nelement())
+        )
+    )
+    print(
+        "Sparsity in fc1 layer weight: {:.2f}%".format(
+            100. * float(torch.sum(model.fc2.weight == 0))
+            / float(model.fc2.weight.nelement())
         )
     )
 
@@ -159,14 +173,14 @@ def train(model, num_epochs):
 
 
         # Compute and print the average accuracy fo this epoch when tested over all 10000 test images
-        accuracy = testAccuracy()
+        accuracy = testAccuracy(model)
         print('For epoch', epoch+1,'the test accuracy over the whole test set is %d %%' % (accuracy))
         epoch_list.append(epoch)
         accuracy_list.append(accuracy)
         
         # we want to save the model if the accuracy is the best
         if accuracy > best_accuracy:
-            saveModel()
+            saveModel(is_prune=False, save_model=model)
             best_accuracy = accuracy
     
     return accuracy_list, epoch_list
@@ -185,8 +199,12 @@ def imageshow(img):
 
 # Function to test the model with a batch of images and show the labels predictions
 def testBatch(model):
-    # get batch of images from the test DataLoader  
+    # get batch of images from the test DataLoader
+    model.to(device)
     images, labels = next(iter(test_loader))
+
+    images = Variable(images.to(device))
+    labels = Variable(labels.to(device))
 
     # show all images as one image grid
     # imageshow(torchvision.utils.make_grid(images))
@@ -231,17 +249,21 @@ def print_loss(accuracy_list, epoch_list, type, count):
         writer.writerow(['count', count])
         writer.writerow(accuracy_list)
 
-def prune_model(model, prune_amount):
-    # Parameters
-    parameters_to_prune = (
-        (model.conv1, 'weight'),
-        (model.conv2, 'weight'),
-        (model.fc1, 'weight'),
-        (model.fc2, 'weight'),
-    )
-
+def prune_model(p_model, prune_amount):
     # Execute Pruning
-    prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=prune_amount)
+    for name, module in p_model.named_modules():
+        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
+            prune.l1_unstructured(module, name='weight', amount=prune_amount)
+            prune.l1_unstructured(module, name='bias', amount=prune_amount)
+            #prune.remove(module, 'weight')
+
+    return p_model
+
+def get_prune_model_accuracy(p_model, prune_amount):
+    pruned_model = prune_model(p_model, prune_amount)
+    acc = testAccuracy(pruned_model)
+
+    return acc
 
 # Start: loading and normalizing the data.
 transformations = transforms.Compose([
@@ -255,17 +277,26 @@ number_of_labels = 2
 number_of_epoch = 5
 classes = ('1', '0')
 
-prune_amount = 0.2
-
-
 label = []
 data = []
 
-types = [0, 1, 2, 3] # 0, 1, 2, 3
+#types = [0, 1, 2, 3] # 0, 1, 2, 3
+types = [0] # 0, 1, 2, 3
 
 for type in types:
     # type 0 = All, 1 = 중형, 2 = 대형, 3 = All
     data, label, count = get_image(type)
+
+    ### Get py array instead of image file reading ###
+    # If you want to save np array file into your local storage.
+    #np.save('./data_nparray', data)
+    #np.save('./label_nparray', label)
+
+    # If you want to load ny array file
+    #data = np.load('./data_nparray.npy')
+    #label = np.load('./label_nparray.npy')
+    #count = len(data)
+    ### Eod of get py ###
 
     data = np.array(data, dtype = np.float32)
     label = np.array(label, dtype = np.int64)
@@ -300,8 +331,7 @@ for type in types:
     print_loss(accuracy_list, epoch_list, type, count)
 
     # Test which classes performed well
-    testAccuracy()
-    
+
     # Let's load the model we just created and test the accuracy per label
     model = Network()
     path = "model.pth"
@@ -309,7 +339,27 @@ for type in types:
 
     # Test with batch of images
     testBatch(model)
-    
-    # Pruning for compact model
-    prune_model(model, prune_amount)
-    print_model_sparsity(model)
+
+    #############################
+    # Pruning for compact model #
+    #############################
+    print("===== pruning result =====")
+
+    # Print the number of parameters of original model
+    print("Original parametes = ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    prune_amount_list = [0.1, 0.4, 0.8, 0.9]
+    prune_test_iteration = 10
+    prune_test_accuracy = []
+
+    for prune_amount in prune_amount_list:
+        prune_acc_sum = .0
+        for j in range(prune_test_iteration):
+            model = Network()
+            model.load_state_dict(torch.load('model.pth'))
+            prune_acc_sum = prune_acc_sum + get_prune_model_accuracy(model, prune_amount)
+        avg_prune_acc = prune_acc_sum/prune_test_iteration
+        prune_test_accuracy.append(avg_prune_acc)
+
+    print(prune_test_accuracy)
+    #print_model_sparsity(pruned_model)
+    #saveModel(is_prune=True, save_model=pruned_model)
