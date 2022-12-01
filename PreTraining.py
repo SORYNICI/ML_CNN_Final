@@ -46,7 +46,7 @@ def get_file_image(label_files, label_path, image_path, type):
     label_count = 0
     for file_path in label_files:
         try:
-            with open(label_path + file_path, 'r') as file:
+            with open(label_path + file_path, 'r', encoding="UTF-8") as file:
                 data = json.load(file)
                 json_str = data["FILE"][0]
                 file_name = json_str["FILE_NAME"]
