@@ -70,14 +70,14 @@ def saveModel(is_prune=False, save_model=None):
     torch.save(save_model.state_dict(), path)
 
 # Function to test the model with the test dataset and print the accuracy for the test images
-def testAccuracy(model):
+def testAccuracy(model, isTest = False):
     model.to(device)
     model.eval()
     accuracy = 0.0
     total = 0.0
     
     with torch.no_grad():
-        for data in test_loader:
+        for data in valid_loader if isTest else test_loader:
             images, labels = data
 
             images = Variable(images.to(device))
@@ -223,7 +223,7 @@ def testBatch(model):
     # imageshow(torchvision.utils.make_grid(images))
    
     # Show the real labels on the screen 
-    print('Real labels: ', ' '.join('%5s' % classes[labels[j]] 
+    print('Real labels: ', ' '.join('%2s' % classes[labels[j]] 
                                for j in range(batch_size)))
   
     # Let's see what if the model identifiers the  labels of those example
@@ -233,7 +233,7 @@ def testBatch(model):
     _, predicted = torch.max(outputs, 1)
     
     # Let's show the predicted labels on the screen to compare with the real ones
-    print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] 
+    print('Predicted:   ', ' '.join('%2s' % classes[predicted[j]] 
                               for j in range(batch_size)))
 
 def print_loss(accuracy_list, epoch_list, type, count):
@@ -294,40 +294,47 @@ label = []
 data = []
 
 #types = [0, 1, 2, 3] # 0, 1, 2, 3
-types = [0] # 0, 1, 2, 3
+types = [3] # 0, 1, 2, 3
 
 for type in types:
     # type 0 = All, 1 = 중형, 2 = 대형, 3 = All
-    data, label, count = get_image(type)
+    # data, label, count = get_image(type)
 
     ### Get py array instead of image file reading ###
     # If you want to save np array file into your local storage.
-    #np.save('./data_nparray', data)
-    #np.save('./label_nparray', label)
+    # np.save('./data_nparray', data)
+    # np.save('./label_nparray', label)
 
     # If you want to load ny array file
-    #data = np.load('./data_nparray.npy')
-    #label = np.load('./label_nparray.npy')
-    #count = len(data)
+    data = np.load('./data_nparray.npy')
+    label = np.load('./label_nparray.npy')
+    count = len(data)
     ### Eod of get py ###
 
     data = np.array(data, dtype = np.float32)
     label = np.array(label, dtype = np.int64)
 
-    train_X, test_X, train_Y, test_Y = model_selection.train_test_split(data, label, test_size=0.3)
+    train_X, valid_X, train_Y, valid_Y = model_selection.train_test_split(data, label, test_size=0.2)
+    train_X, test_X, train_Y, test_Y = model_selection.train_test_split(train_X, train_Y, test_size=0.25)
 
     train_X = torch.from_numpy(train_X).float()
     train_Y = torch.from_numpy(train_Y).long()
+
+    valid_X = torch.from_numpy(valid_X).float()
+    valid_Y = torch.from_numpy(valid_Y).long()
 
     test_X = torch.from_numpy(test_X).float()
     test_Y = torch.from_numpy(test_Y).long()
 
     train_set = TensorDataset(train_X, train_Y)
+    valid_set = TensorDataset(valid_X, valid_Y)
     test_set = TensorDataset(test_X, test_Y)
     print('train_set len: ', len(train_set))
+    print('valid_set len: ', len(valid_set))
     print('test_set len: ', len(test_set))
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+    valid_loader = DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=0)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0)
     # End: loading and normalizing the data.
 
@@ -352,6 +359,9 @@ for type in types:
 
     # Test with batch of images
     testBatch(model)
+
+    accuracy = testAccuracy(model, True)
+    print('The final test accuracy: %d %%' % (accuracy))
 
     #############################
     # Pruning for compact model #
@@ -388,4 +398,3 @@ for type in types:
     plt.ylabel('accuracy (%)')
     plt.grid(True)
     plt.show()
-    #saveModel(is_prune=True, save_model=pruned_model)
