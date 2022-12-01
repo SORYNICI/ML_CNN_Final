@@ -46,7 +46,7 @@ class Network(nn.Module):
     return F.log_softmax(x)
 
 # Function to save the model
-def saveModel():
+def saveModel(is_prune=False):
     if is_prune:
         path = "model_prune.pth"
     else:
