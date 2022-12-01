@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torch.nn.functional as F
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import json
@@ -20,10 +21,22 @@ from torch.autograd import Variable
 from torch.optim import Adam
 from sklearn import model_selection
 import pandas as pd
+import random
 
 from PreTraining import get_image
 import csv
 import time
+from tqdm import tqdm
+
+# Set random seed
+seed = 1777
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -344,22 +357,35 @@ for type in types:
     # Pruning for compact model #
     #############################
     print("===== pruning result =====")
+    print("Original accuracy = ", testAccuracy(model))
+    print("Original parameters = ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    # Print the number of parameters of original model
-    print("Original parametes = ", sum(p.numel() for p in model.parameters() if p.requires_grad))
-    prune_amount_list = [0.1, 0.4, 0.8, 0.9]
+    prune_amount_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
     prune_test_iteration = 10
     prune_test_accuracy = []
 
+    # Get accuracies
     for prune_amount in prune_amount_list:
         prune_acc_sum = .0
-        for j in range(prune_test_iteration):
+        for j in tqdm(range(prune_test_iteration), desc="{} weight pruning".format(prune_amount)):
             model = Network()
             model.load_state_dict(torch.load('model.pth'))
             prune_acc_sum = prune_acc_sum + get_prune_model_accuracy(model, prune_amount)
         avg_prune_acc = prune_acc_sum/prune_test_iteration
         prune_test_accuracy.append(avg_prune_acc)
 
+    # Show the sparsity
+    model = Network()
+    model.load_state_dict(torch.load('model.pth'))
+    pruned_model = prune_model(model, 0.8)
+    print_model_sparsity(pruned_model)
+
+    # Show the accuracy result as a graph
     print(prune_test_accuracy)
-    #print_model_sparsity(pruned_model)
+    matplotlib.use('TkAgg')
+    plt.plot([item * 100 for item in prune_amount_list], prune_test_accuracy, '-o')
+    plt.xlabel('pruned weight (%)')
+    plt.ylabel('accuracy (%)')
+    plt.grid(True)
+    plt.show()
     #saveModel(is_prune=True, save_model=pruned_model)
